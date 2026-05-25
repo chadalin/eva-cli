@@ -72,7 +72,7 @@ async function startRepl() {
         if (input.startsWith('/run ')) {
             const code = input.slice(5); lastCode = code;
             await showStep('run');
-            const result = executeCode(code, 'python');
+            const result = await executeCode(code, 'python');
             if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
             else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
             continue;
@@ -88,7 +88,7 @@ async function startRepl() {
             const code = extractCode(reply);
             if (code) {
                 lastCode = code; await showStep('run');
-                const result = executeCode(code, 'python');
+                const result = await executeCode(code, 'python');
                 if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
                 else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
             }
@@ -124,7 +124,7 @@ async function startRepl() {
             lastCode = code;
             if (code) {
                 await showStep('run');
-                const result = executeCode(code, 'python');
+                const result = await executeCode(code, 'python');
                 if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
                 else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
             }
