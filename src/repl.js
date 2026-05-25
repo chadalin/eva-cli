@@ -262,6 +262,7 @@ async function startRepl() {
         if (toolChoice.tool !== 'none') {
             console.log(Y + `Eva: использую ${toolChoice.tool}(${toolChoice.args || ''})` + R);
             const toolResult = await executeTool(toolChoice.tool, toolChoice.args);
+            console.log(Y + `[tool-result]: ${toolResult}` + R);
             if (toolResult !== null) {
                 finalInput = `${input}\n\n[Результат инструмента ${toolChoice.tool}(${toolChoice.args || ''})]\n${toolResult}`;
             }

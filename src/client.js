@@ -5,9 +5,12 @@ const LARAVEL_URL = process.env.LARAVEL_URL || 'https://peopl.ru';
 const EVA_TOKEN = process.env.EVA_TOKEN || 'eva-secret-2026';
 
 async function askEva(message, userId = 'cli-user') {
+    const safeMessage = message.length > 40000
+        ? message.slice(0, 40000) + '\n\n...[обрезано]'
+        : message;
     try {
         const res = await axios.post(`${LARAVEL_URL}/api/eva/chat`, {
-            message,
+            message: safeMessage,
             user_id: isNaN(userId) ? 3 : parseInt(userId),
             source: 'cli'
         }, {
