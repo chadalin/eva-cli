@@ -46,8 +46,13 @@ function looksLikeCode(input) {
 const TOOLS_LIST = 'read_file, list_dir, run_command, git, artisan, composer, check_syntax, test, lint, npm_run, none';
 
 async function selectTool(input, userId) {
-    const toolPrompt = `Пользователь написал: "${input}"\nДоступные инструменты: ${TOOLS_LIST}\ncheck_syntax — проверить синтаксис PHP файла (args: путь к файлу)\ntest — запустить тесты (args: опционально фильтр)\nlint — проверить стиль кода PHP\nnpm_run — запустить npm скрипт (args: название скрипта)\nОтветь JSON: {"tool": "название", "args": "аргументы"} или {"tool": "none"}\nТолько JSON, без пояснений.`;
+    const toolPrompt = `Ответь ТОЛЬКО JSON без пояснений.
+Запрос: "${input}"
+Инструменты: list_dir(путь), read_file(путь), git(команда), artisan(команда), composer(команда), check_syntax(файл), test(фильтр), lint(путь), npm_run(скрипт), run_command(команда), none
+Пример: {"tool":"list_dir","args":"."}
+JSON:`;
     const raw = await askEva(toolPrompt, userId);
+    console.log(Y + `[tool-select raw]: ${raw}` + R);
     try {
         const m = raw.match(/\{[\s\S]*?\}/);
         return m ? JSON.parse(m[0]) : { tool: 'none' };
