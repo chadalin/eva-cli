@@ -49,6 +49,12 @@ async function selectTool(input, userId) {
     const toolPrompt = `Ответь ТОЛЬКО JSON без пояснений.
 Запрос: "${input}"
 Инструменты: list_dir(путь), read_file(путь), git(команда), artisan(команда), composer(команда), check_syntax(файл), test(фильтр), lint(путь), npm_run(скрипт), run_command(команда), none
+Маппинг:
+покажи папки/файлы/структуру → list_dir
+прочитай/открой файл → read_file
+ветка/коммит/статус/git → git
+артизан/artisan/миграция/роут → artisan
+композер/composer/зависимости → composer
 Пример: {"tool":"list_dir","args":"."}
 JSON:`;
     const raw = await askEva(toolPrompt, userId);
