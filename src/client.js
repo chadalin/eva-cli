@@ -8,7 +8,7 @@ async function askEva(message, userId = 'cli-user') {
     try {
         const res = await axios.post(`${LARAVEL_URL}/api/eva/chat`, {
             message,
-            user_id: userId,
+            user_id: isNaN(userId) ? 3 : parseInt(userId),
             source: 'cli'
         }, {
             timeout: 30000,
