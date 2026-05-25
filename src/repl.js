@@ -1,60 +1,56 @@
 const readline = require('readline');
+const { execSync } = require('child_process');
 const { askEva } = require('./client');
 const { executeCode } = require('./executor');
 
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-});
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-function prompt(question) {
-    return new Promise(resolve => rl.question(question, resolve));
-}
+const G = '\x1b[32m';  // зелёный
+const Y = '\x1b[33m';  // жёлтый
+const R = '\x1b[0m';   // сброс
+
+function prompt(q) { return new Promise(r => rl.question(q, r)); }
 
 function extractCode(text) {
-    const match = text.match(/```(?:python|py)\n([\s\S]*?)```/);
-    return match ? match[1].trim() : null;
+    const m = text.match(/```(?:python|py|javascript|js)\n([\s\S]*?)```/);
+    return m ? m[1].trim() : null;
 }
 
 function startThinking(label = 'Eva: думаю') {
     const frames = ['   ', '.  ', '.. ', '...'];
     let i = 0;
-    process.stdout.write(label + frames[0]);
-    const timer = setInterval(() => {
-        process.stdout.write('\r' + label + frames[i % frames.length]);
-        i++;
+    process.stdout.write(G + label + frames[0] + R);
+    const t = setInterval(() => {
+        process.stdout.write('\r' + G + label + frames[i++ % frames.length] + R);
     }, 350);
-    return () => {
-        clearInterval(timer);
-        process.stdout.write('\r' + ' '.repeat(label.length + 5) + '\r');
-    };
+    return () => { clearInterval(t); process.stdout.write('\r' + ' '.repeat(label.length + 5) + '\r'); };
 }
 
 const STEPS = {
-    analyze: ['Eva: 🔍 анализирую задачу...','Eva: 🔍 ищу решение...','Eva: 🔍 смотрю что тут у нас...'],
-    write: ['Eva: ⚙️  пишу код...','Eva: ⚙️  компилирую мысли...','Eva: ⚙️  кручу шестерёнки...'],
-    run: ['Eva: 🚀 запускаю...','Eva: 🚀 поехали!','Eva: 🚀 3... 2... 1...'],
+    analyze: ['Eva: 🔍 анализирую задачу...', 'Eva: 🔍 ищу решение...', 'Eva: 🔍 смотрю что тут у нас...'],
+    write:   ['Eva: ⚙️  пишу код...', 'Eva: ⚙️  компилирую мысли...', 'Eva: ⚙️  кручу шестерёнки...'],
+    run:     ['Eva: 🚀 запускаю...', 'Eva: 🚀 поехали!', 'Eva: 🚀 3... 2... 1...'],
 };
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
 async function showStep(type, ms = 500) {
-    console.log(pick(STEPS[type]));
+    console.log(G + pick(STEPS[type]) + R);
     await new Promise(r => setTimeout(r, ms));
 }
 
-const VAGUE = ['сделай', 'напиши', 'помоги', 'придумай', 'что-нибудь', 'что-то', 'хочу'];
-function isVague(input) {
-    const lower = input.toLowerCase().trim();
-    return lower.split(/\s+/).length <= 5 && VAGUE.some(k => lower.includes(k));
-}
 function looksLikeCode(input) {
     return /напиши|сделай код|код|скрипт|функци|алгоритм|программ/i.test(input);
 }
 
+const VAGUE = ['сделай', 'помоги', 'придумай', 'что-нибудь', 'что-то', 'хочу'];
+function isVague(input) {
+    const l = input.toLowerCase().trim();
+    return l.split(/\s+/).length <= 5 && VAGUE.some(k => l.includes(k));
+}
+
 async function startRepl() {
-    console.log('\n Eva CLI — AI ассистент');
-    console.log(' Команды: /exit, /graph, /run <код>, /fix');
+    console.log(G + '\n Eva CLI — AI ассистент v1.0.0' + R);
+    console.log(' Команды: /exit  /run <код>  /fix  /git <команда>  /graph');
     console.log(' ─────────────────────────────────\n');
 
     const userId = process.env.EVA_USER || 'cli-' + Date.now();
@@ -66,49 +62,60 @@ async function startRepl() {
         if (!input.trim()) continue;
 
         if (input === '/exit' || input === '/quit') {
-            console.log('\nEva: Пока!\n'); rl.close(); process.exit(0);
+            console.log(G + '\nEva: Пока!\n' + R); rl.close(); process.exit(0);
+        }
+
+        if (input.startsWith('/git ')) {
+            const cmd = input.slice(5);
+            try {
+                const out = execSync(`git ${cmd}`, { encoding: 'utf8', cwd: process.cwd() });
+                console.log(G + 'Eva: ' + R + out + '\n');
+            } catch (err) {
+                console.log(G + 'Eva: Ошибка git: ' + R + err.message + '\n');
+            }
+            continue;
         }
 
         if (input.startsWith('/run ')) {
             const code = input.slice(5); lastCode = code;
             await showStep('run');
             const result = await executeCode(code, 'python');
-            if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
-            else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
+            if (result.success) { console.log(G + 'Eva: Результат:\n' + R + result.output + '\n'); lastError = null; }
+            else { lastError = result.error; console.log(G + 'Eva: Ошибка:\n' + R + result.error + '\n'); }
             continue;
         }
 
         if (input === '/fix' && lastCode && lastError) {
             const fixPrompt = `Этот код вызвал ошибку:\n\`\`\`python\n${lastCode}\n\`\`\`\nОшибка: ${lastError}\nИсправь код.`;
             await showStep('analyze', 400);
-            const stopFix = startThinking('Eva: думаю');
+            const stop = startThinking('Eva: думаю');
             const reply = await askEva(fixPrompt, userId);
-            stopFix();
-            console.log('Eva: ' + reply + '\n');
+            stop();
+            console.log(G + 'Eva: ' + R + reply + '\n');
             const code = extractCode(reply);
             if (code) {
                 lastCode = code; await showStep('run');
                 const result = await executeCode(code, 'python');
-                if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
-                else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
+                if (result.success) { console.log(G + 'Eva: Результат:\n' + R + result.output + '\n'); lastError = null; }
+                else { lastError = result.error; console.log(G + 'Eva: Ошибка:\n' + R + result.error + '\n'); }
             }
             continue;
         }
 
         if (input === '/graph') {
             const { getBrainGraph } = require('./client');
-            const stopGraph = startThinking('Eva: загружаю граф');
+            const stop = startThinking('Eva: загружаю граф');
             const graph = await getBrainGraph(userId);
-            stopGraph();
-            if (graph && graph.nodes) console.log('Eva: Мои мысли о тебе:', graph.nodes.slice(0,5).map(n => n.name).join(', ') + '\n');
+            stop();
+            if (graph && graph.nodes) console.log(G + 'Eva: Мои мысли о тебе: ' + R + graph.nodes.slice(0,5).map(n => n.name).join(', ') + '\n');
             continue;
         }
 
         if (isVague(input)) {
-            const stopQ = startThinking('Eva: уточняю');
-            const question = await askEva(`Пользователь написал: "${input}". Задача слишком расплывчата. Задай ОДИН короткий уточняющий вопрос. Только вопрос, без вступлений.`, userId);
-            stopQ();
-            console.log('Eva: ' + question + '\n');
+            const stop = startThinking('Eva: уточняю');
+            const q = await askEva(`Пользователь написал: "${input}". Задай ОДИН короткий уточняющий вопрос. Только вопрос.`, userId);
+            stop();
+            console.log(G + 'Eva: ' + R + q + '\n');
             continue;
         }
 
@@ -117,17 +124,15 @@ async function startRepl() {
         const stop = startThinking('Eva: думаю');
         const reply = await askEva(input, userId);
         stop();
-        console.log('Eva: ' + reply + '\n');
+        console.log(G + 'Eva: ' + R + reply + '\n');
 
         const code = extractCode(reply);
         if (code) {
             lastCode = code;
-            if (code) {
-                await showStep('run');
-                const result = await executeCode(code, 'python');
-                if (result.success) { console.log(`Eva: Результат:\n${result.output}\n`); lastError = null; }
-                else { lastError = result.error; console.log(`Eva: Ошибка:\n${result.error}\n`); }
-            }
+            await showStep('run');
+            const result = await executeCode(code, 'python');
+            if (result.success) { console.log(G + 'Eva: Результат:\n' + R + result.output + '\n'); lastError = null; }
+            else { lastError = result.error; console.log(G + 'Eva: Ошибка:\n' + R + result.error + '\n'); }
         }
     }
 }
