@@ -1,0 +1,26 @@
+{
+  "name": "eva-ai-cli",
+  "version": "1.0.0",
+  "description": "Eva AI assistant CLI - smart assistant with memory and spontaneous thinking",
+  "main": "src/repl.js",
+  "bin": {
+    "eva": "bin/eva.js"
+  },
+  "scripts": {
+    "start": "node bin/eva.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "readline-sync": "^1.4.10"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "cli",
+    "eva"
+  ],
+  "author": "Eva AI",
+  "license": "ISC"
+}
