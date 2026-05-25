@@ -94,8 +94,13 @@ async function executeTool(tool, args) {
     const blocked = 'Ошибка: команда заблокирована из соображений безопасности';
     try {
         switch (tool) {
-            case 'read_file':
-                return fs.readFileSync(a, 'utf8');
+            case 'read_file': {
+                const content = fs.readFileSync(a, 'utf8');
+                if (content.length > 3000) {
+                    return content.slice(0, 3000) + '\n\n... [файл обрезан, показаны первые 3000 символов]';
+                }
+                return content;
+            }
             case 'list_dir':
                 return fs.readdirSync(a || '.').join('\n');
             case 'run_command': {
@@ -124,12 +129,16 @@ async function executeTool(tool, args) {
                 if (!isSafe(a)) return blocked;
                 return execSync(`npm run ${a}`, { encoding: 'utf8', cwd, shell: true });
             case 'write_file': {
-                const sepIdx = a.indexOf('|||');
-                const filePath = a.slice(0, sepIdx).trim();
-                const content = a.slice(sepIdx + 3).replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-                fs.mkdirSync(require('path').dirname(filePath), { recursive: true });
-                fs.writeFileSync(filePath, content, 'utf8');
-                return `Файл ${filePath} создан (${content.length} символов)`;
+                try {
+                    const sepIdx = a.indexOf('|||');
+                    const filePath = a.slice(0, sepIdx).trim();
+                    const content = a.slice(sepIdx + 3).replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                    fs.mkdirSync(require('path').dirname(filePath), { recursive: true });
+                    fs.writeFileSync(filePath, content, 'utf8');
+                    return `Файл ${filePath} создан (${content.length} символов)`;
+                } catch (e) {
+                    return `ОШИБКА: ${e.message}`;
+                }
             }
             case 'make_dir':
                 fs.mkdirSync(a, { recursive: true });
