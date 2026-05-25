@@ -17,6 +17,7 @@ async function askEva(message, userId = 'cli-user') {
             timeout: 30000,
             headers: { 'X-Eva-Token': EVA_TOKEN }
         });
+        console.log('[usage]', JSON.stringify(res.data.usage));
         return {
             reply: res.data.reply || res.data.message || 'Нет ответа',
             tokens: res.data.usage?.total_tokens || 0,

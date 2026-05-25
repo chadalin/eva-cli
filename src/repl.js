@@ -135,7 +135,7 @@ async function executeTool(tool, args) {
                 try {
                     const sepIdx = a.indexOf('|||');
                     const filePath = a.slice(0, sepIdx).trim();
-                    const content = a.slice(sepIdx + 3).replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                    const content = a.slice(sepIdx + 3).replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
                     fs.mkdirSync(require('path').dirname(filePath), { recursive: true });
                     fs.writeFileSync(filePath, content, 'utf8');
                     return `Файл ${filePath} создан (${content.length} символов)`;
