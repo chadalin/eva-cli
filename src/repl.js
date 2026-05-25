@@ -56,31 +56,56 @@ async function selectTool(input, userId) {
     }
 }
 
-function executeTool(tool, args) {
+const DANGEROUS = ['rm -rf', 'rmdir /s', 'del /f', 'format', 'mkfs', 'dd if=', 'shutdown', 'reboot', ':(){:|:&};:'];
+
+function isSafe(cmd) {
+    return !DANGEROUS.some(d => cmd.toLowerCase().includes(d));
+}
+
+function tryComposer(a, cwd) {
+    for (const bin of ['php composer.phar', 'composer', 'composer.bat']) {
+        try {
+            return execSync(`${bin} ${a}`, { encoding: 'utf8', cwd, shell: true });
+        } catch { /* следующий вариант */ }
+    }
+    throw new Error('composer не найден (попробованы: php composer.phar, composer, composer.bat)');
+}
+
+async function executeTool(tool, args) {
     const cwd = process.cwd();
     const a = (args || '').trim();
+    const blocked = 'Ошибка: команда заблокирована из соображений безопасности';
     try {
         switch (tool) {
             case 'read_file':
                 return fs.readFileSync(a, 'utf8');
             case 'list_dir':
                 return fs.readdirSync(a || '.').join('\n');
-            case 'run_command':
-                return execSync(a, { encoding: 'utf8', cwd });
+            case 'run_command': {
+                if (!isSafe(a)) return blocked;
+                const confirm = await prompt(Y + `Eva: выполнить команду "${a}"? (да/нет): ` + R);
+                if (!confirm.trim().toLowerCase().startsWith('д')) return 'Eva: команда отменена.';
+                return execSync(a, { encoding: 'utf8', cwd, shell: true });
+            }
             case 'git':
-                return execSync(`git ${a}`, { encoding: 'utf8', cwd });
+                if (!isSafe(a)) return blocked;
+                return execSync(`git ${a}`, { encoding: 'utf8', cwd, shell: true });
             case 'artisan':
-                return execSync(`php artisan ${a}`, { encoding: 'utf8', cwd });
+                if (!isSafe(a)) return blocked;
+                return execSync(`php artisan ${a}`, { encoding: 'utf8', cwd, shell: true });
             case 'composer':
-                return execSync(`composer ${a}`, { encoding: 'utf8', cwd });
+                if (!isSafe(a)) return blocked;
+                return tryComposer(a, cwd);
             case 'check_syntax':
-                return execSync(`php -l ${a}`, { encoding: 'utf8', cwd });
+                if (!isSafe(a)) return blocked;
+                return execSync(`php -l ${a}`, { encoding: 'utf8', cwd, shell: true });
             case 'test':
-                return execSync(`composer run test${a ? ' -- --filter ' + a : ''}`, { encoding: 'utf8', cwd });
+                return execSync(`composer run test${a ? ' -- --filter ' + a : ''}`, { encoding: 'utf8', cwd, shell: true });
             case 'lint':
-                return execSync(`./vendor/bin/pint${a ? ' ' + a : ''}`, { encoding: 'utf8', cwd });
+                return execSync(`./vendor/bin/pint${a ? ' ' + a : ''}`, { encoding: 'utf8', cwd, shell: true });
             case 'npm_run':
-                return execSync(`npm run ${a}`, { encoding: 'utf8', cwd });
+                if (!isSafe(a)) return blocked;
+                return execSync(`npm run ${a}`, { encoding: 'utf8', cwd, shell: true });
             default:
                 return null;
         }
@@ -175,7 +200,7 @@ async function startRepl() {
         let finalInput = input;
         if (toolChoice.tool !== 'none') {
             console.log(Y + `Eva: использую ${toolChoice.tool}(${toolChoice.args || ''})` + R);
-            const toolResult = executeTool(toolChoice.tool, toolChoice.args);
+            const toolResult = await executeTool(toolChoice.tool, toolChoice.args);
             if (toolResult !== null) {
                 finalInput = `${input}\n\n[Результат инструмента ${toolChoice.tool}(${toolChoice.args || ''})]\n${toolResult}`;
             }
