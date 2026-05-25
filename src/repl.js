@@ -124,10 +124,12 @@ async function executeTool(tool, args) {
                 if (!isSafe(a)) return blocked;
                 return execSync(`npm run ${a}`, { encoding: 'utf8', cwd, shell: true });
             case 'write_file': {
-                const [filePath, ...contentParts] = a.split('|||');
-                fs.mkdirSync(require('path').dirname(filePath.trim()), { recursive: true });
-                fs.writeFileSync(filePath.trim(), contentParts.join('|||'));
-                return `Файл ${filePath.trim()} создан`;
+                const sepIdx = a.indexOf('|||');
+                const filePath = a.slice(0, sepIdx).trim();
+                const content = a.slice(sepIdx + 3).replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                fs.mkdirSync(require('path').dirname(filePath), { recursive: true });
+                fs.writeFileSync(filePath, content, 'utf8');
+                return `Файл ${filePath} создан (${content.length} символов)`;
             }
             case 'make_dir':
                 fs.mkdirSync(a, { recursive: true });
