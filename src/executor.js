@@ -1,24 +1,16 @@
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+const axios = require('axios');
 
-function executeCode(code, language = 'python') {
-    const tmpDir = os.tmpdir();
-    const ext = language === 'python' ? 'py' : language === 'javascript' ? 'js' : 'sh';
-    const tmpFile = path.join(tmpDir, `eva_exec_${Date.now()}.${ext}`);
-    
+const EVA_URL = process.env.EVA_URL || 'http://46.173.26.56:8100';
+
+async function executeCode(code, language = 'python') {
     try {
-        fs.writeFileSync(tmpFile, code);
-        const cmd = language === 'python' ? `python3 ${tmpFile}` :
-                    language === 'javascript' ? `node ${tmpFile}` :
-                    `bash ${tmpFile}`;
-        const output = execSync(cmd, { timeout: 10000, encoding: 'utf8' });
-        return { success: true, output: output.trim() };
+        const res = await axios.post(`${EVA_URL}/brain/execute`, {
+            code,
+            language
+        }, { timeout: 15000 });
+        return res.data;
     } catch (err) {
-        return { success: false, error: err.stderr || err.message };
-    } finally {
-        try { fs.unlinkSync(tmpFile); } catch {}
+        return { success: false, error: err.message };
     }
 }
 
