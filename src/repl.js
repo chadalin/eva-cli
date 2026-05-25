@@ -1,4 +1,5 @@
 const readline = require('readline');
+const fs = require('fs');
 const { execSync } = require('child_process');
 const { askEva } = require('./client');
 const { executeCode } = require('./executor');
@@ -40,6 +41,52 @@ async function showStep(type, ms = 500) {
 
 function looksLikeCode(input) {
     return /напиши|сделай код|код|скрипт|функци|алгоритм|программ/i.test(input);
+}
+
+const TOOLS_LIST = 'read_file, list_dir, run_command, git, artisan, composer, check_syntax, test, lint, npm_run, none';
+
+async function selectTool(input, userId) {
+    const toolPrompt = `Пользователь написал: "${input}"\nДоступные инструменты: ${TOOLS_LIST}\ncheck_syntax — проверить синтаксис PHP файла (args: путь к файлу)\ntest — запустить тесты (args: опционально фильтр)\nlint — проверить стиль кода PHP\nnpm_run — запустить npm скрипт (args: название скрипта)\nОтветь JSON: {"tool": "название", "args": "аргументы"} или {"tool": "none"}\nТолько JSON, без пояснений.`;
+    const raw = await askEva(toolPrompt, userId);
+    try {
+        const m = raw.match(/\{[\s\S]*?\}/);
+        return m ? JSON.parse(m[0]) : { tool: 'none' };
+    } catch {
+        return { tool: 'none' };
+    }
+}
+
+function executeTool(tool, args) {
+    const cwd = process.cwd();
+    const a = (args || '').trim();
+    try {
+        switch (tool) {
+            case 'read_file':
+                return fs.readFileSync(a, 'utf8');
+            case 'list_dir':
+                return fs.readdirSync(a || '.').join('\n');
+            case 'run_command':
+                return execSync(a, { encoding: 'utf8', cwd });
+            case 'git':
+                return execSync(`git ${a}`, { encoding: 'utf8', cwd });
+            case 'artisan':
+                return execSync(`php artisan ${a}`, { encoding: 'utf8', cwd });
+            case 'composer':
+                return execSync(`composer ${a}`, { encoding: 'utf8', cwd });
+            case 'check_syntax':
+                return execSync(`php -l ${a}`, { encoding: 'utf8', cwd });
+            case 'test':
+                return execSync(`composer run test${a ? ' -- --filter ' + a : ''}`, { encoding: 'utf8', cwd });
+            case 'lint':
+                return execSync(`./vendor/bin/pint${a ? ' ' + a : ''}`, { encoding: 'utf8', cwd });
+            case 'npm_run':
+                return execSync(`npm run ${a}`, { encoding: 'utf8', cwd });
+            default:
+                return null;
+        }
+    } catch (err) {
+        return `Ошибка: ${err.stderr || err.message}`;
+    }
 }
 
 const VAGUE = ['сделай', 'помоги', 'придумай', 'что-нибудь', 'что-то', 'хочу'];
@@ -121,8 +168,21 @@ async function startRepl() {
 
         if (looksLikeCode(input)) { await showStep('analyze', 400); await showStep('write', 600); }
 
+        const stopTool = startThinking('Eva: выбираю инструмент');
+        const toolChoice = await selectTool(input, userId);
+        stopTool();
+
+        let finalInput = input;
+        if (toolChoice.tool !== 'none') {
+            console.log(Y + `Eva: использую ${toolChoice.tool}(${toolChoice.args || ''})` + R);
+            const toolResult = executeTool(toolChoice.tool, toolChoice.args);
+            if (toolResult !== null) {
+                finalInput = `${input}\n\n[Результат инструмента ${toolChoice.tool}(${toolChoice.args || ''})]\n${toolResult}`;
+            }
+        }
+
         const stop = startThinking('Eva: думаю');
-        const reply = await askEva(input, userId);
+        const reply = await askEva(finalInput, userId);
         stop();
         console.log(G + 'Eva: ' + R + reply + '\n');
 
