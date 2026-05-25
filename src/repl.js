@@ -63,12 +63,15 @@ async function selectTool(input, userId) {
 композер/composer/зависимости → composer
 Пример: {"tool":"list_dir","args":"."}
 JSON:`;
-    const raw = await askEva(toolPrompt, userId);
+    const { reply: raw } = await askEva(toolPrompt, userId);
     console.log(Y + `[tool-select raw]: ${raw}` + R);
     try {
         const m = raw.match(/\{[\s\S]*?\}/);
         return m ? JSON.parse(m[0]) : { tool: 'none' };
     } catch {
+        const toolMatch = raw.match(/"tool"\s*:\s*"([^"]+)"/);
+        const argsMatch = raw.match(/"args"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+        if (toolMatch) return { tool: toolMatch[1], args: argsMatch ? argsMatch[1] : '' };
         return { tool: 'none' };
     }
 }
@@ -132,7 +135,7 @@ async function executeTool(tool, args) {
                 try {
                     const sepIdx = a.indexOf('|||');
                     const filePath = a.slice(0, sepIdx).trim();
-                    const content = a.slice(sepIdx + 3).replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+                    const content = a.slice(sepIdx + 3).replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
                     fs.mkdirSync(require('path').dirname(filePath), { recursive: true });
                     fs.writeFileSync(filePath, content, 'utf8');
                     return `Файл ${filePath} создан (${content.length} символов)`;
@@ -189,13 +192,23 @@ async function startRepl() {
     const userId = process.env.EVA_USER || 'cli-' + Date.now();
     let lastCode = null;
     let lastError = null;
+    let sessionTokens = 0;
+    const sessionStart = Date.now();
 
     while (true) {
         const input = await prompt('You: ');
         if (!input.trim()) continue;
 
         if (input === '/exit' || input === '/quit') {
-            console.log(G + '\nEva: Пока!\n' + R); rl.close(); process.exit(0);
+            const elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            const cost = (sessionTokens * 0.000001).toFixed(4);
+            console.log(G + '\nEva: Сессия завершена' + R);
+            console.log(G + `⏱ Время: ${mins} мин ${secs} сек` + R);
+            console.log(G + `🪙 Токенов использовано: ${sessionTokens}` + R);
+            console.log(G + `💰 Примерная стоимость: $${cost}\n` + R);
+            rl.close(); process.exit(0);
         }
 
         if (input.startsWith('/git ')) {
@@ -222,7 +235,7 @@ async function startRepl() {
             const fixPrompt = `Этот код вызвал ошибку:\n\`\`\`python\n${lastCode}\n\`\`\`\nОшибка: ${lastError}\nИсправь код.`;
             await showStep('analyze', 400);
             const stop = startThinking('Eva: думаю');
-            const reply = await askEva(fixPrompt, userId);
+            const { reply } = await askEva(fixPrompt, userId);
             stop();
             console.log(G + 'Eva: ' + R + reply + '\n');
             const code = extractCode(reply);
@@ -246,7 +259,7 @@ async function startRepl() {
 
         if (isVague(input)) {
             const stop = startThinking('Eva: уточняю');
-            const q = await askEva(`Пользователь написал: "${input}". Задай ОДИН короткий уточняющий вопрос. Только вопрос.`, userId);
+            const { reply: q } = await askEva(`Пользователь написал: "${input}". Задай ОДИН короткий уточняющий вопрос. Только вопрос.`, userId);
             stop();
             console.log(G + 'Eva: ' + R + q + '\n');
             continue;
@@ -268,10 +281,14 @@ async function startRepl() {
             }
         }
 
+        const requestStart = Date.now();
         const stop = startThinking('Eva: думаю');
-        const reply = await askEva(finalInput, userId);
+        const { reply, tokens } = await askEva(finalInput, userId);
         stop();
+        sessionTokens += tokens;
+        const elapsed = ((Date.now() - requestStart) / 1000).toFixed(1);
         console.log(G + 'Eva: ' + R + reply + '\n');
+        console.log(Y + `[⏱ ${elapsed}с | 🪙 ${tokens} токенов | сессия: ${sessionTokens} токенов]` + R + '\n');
 
         const code = extractCode(reply);
         if (code) {

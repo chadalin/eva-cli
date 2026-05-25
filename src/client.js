@@ -17,9 +17,12 @@ async function askEva(message, userId = 'cli-user') {
             timeout: 30000,
             headers: { 'X-Eva-Token': EVA_TOKEN }
         });
-        return res.data.reply || res.data.message || 'Нет ответа';
+        return {
+            reply: res.data.reply || res.data.message || 'Нет ответа',
+            tokens: res.data.usage?.total_tokens || 0,
+        };
     } catch (err) {
-        return `Ошибка: ${err.message}`;
+        return { reply: `Ошибка: ${err.message}`, tokens: 0 };
     }
 }
 
