@@ -43,16 +43,22 @@ function looksLikeCode(input) {
     return /напиши|сделай код|код|скрипт|функци|алгоритм|программ/i.test(input);
 }
 
-const TOOLS_LIST = 'read_file, list_dir, run_command, git, artisan, composer, check_syntax, test, lint, npm_run, none';
+const TOOLS_LIST = 'read_file, list_dir, write_file, edit_file, make_dir, delete_file, delete_dir, run_command, git, git_commit, artisan, composer, check_syntax, test, lint, npm_run, none';
 
 async function selectTool(input, userId) {
     const toolPrompt = `Ответь ТОЛЬКО JSON без пояснений.
 Запрос: "${input}"
-Инструменты: list_dir(путь), read_file(путь), git(команда), artisan(команда), composer(команда), check_syntax(файл), test(фильтр), lint(путь), npm_run(скрипт), run_command(команда), none
+Инструменты: list_dir(путь), read_file(путь), write_file(путь|||содержимое), edit_file(путь|||старое|||новое), make_dir(путь), delete_file(путь), delete_dir(путь), git(команда), git_commit(сообщение), artisan(команда), composer(команда), check_syntax(файл), test(фильтр), lint(путь), npm_run(скрипт), run_command(команда), none
 Маппинг:
 покажи папки/файлы/структуру → list_dir
 прочитай/открой файл → read_file
-ветка/коммит/статус/git → git
+создай/запиши/сохрани файл → write_file
+отредактируй/измени файл → edit_file
+создай папку → make_dir
+удали файл → delete_file
+удали папку → delete_dir
+ветка/статус/git → git
+закоммить/пушни/сохрани в гит → git_commit
 артизан/artisan/миграция/роут → artisan
 композер/composer/зависимости → composer
 Пример: {"tool":"list_dir","args":"."}
@@ -117,6 +123,39 @@ async function executeTool(tool, args) {
             case 'npm_run':
                 if (!isSafe(a)) return blocked;
                 return execSync(`npm run ${a}`, { encoding: 'utf8', cwd, shell: true });
+            case 'write_file': {
+                const [filePath, ...contentParts] = a.split('|||');
+                fs.mkdirSync(require('path').dirname(filePath.trim()), { recursive: true });
+                fs.writeFileSync(filePath.trim(), contentParts.join('|||'));
+                return `Файл ${filePath.trim()} создан`;
+            }
+            case 'make_dir':
+                fs.mkdirSync(a, { recursive: true });
+                return `Папка ${a} создана`;
+            case 'edit_file': {
+                const [ePath, oldText, newText] = a.split('|||');
+                const content = fs.readFileSync(ePath.trim(), 'utf8');
+                const updated = content.replace(oldText, newText);
+                fs.writeFileSync(ePath.trim(), updated);
+                return `Файл ${ePath.trim()} обновлён`;
+            }
+            case 'delete_file': {
+                const confirmDel = await prompt(Y + `Eva: Удалить файл "${a}"? (да/нет): ` + R);
+                if (confirmDel.trim().toLowerCase() !== 'да') return 'Отменено';
+                fs.unlinkSync(a);
+                return `Файл ${a} удалён`;
+            }
+            case 'delete_dir': {
+                const confirmDir = await prompt(Y + `Eva: Удалить папку "${a}" со всем содержимым? (да/нет): ` + R);
+                if (confirmDir.trim().toLowerCase() !== 'да') return 'Отменено';
+                fs.rmSync(a, { recursive: true });
+                return `Папка ${a} удалена`;
+            }
+            case 'git_commit':
+                execSync('git add .', { shell: true, cwd });
+                execSync(`git commit -m "${a}"`, { shell: true, cwd });
+                execSync('git push', { shell: true, cwd });
+                return 'Закоммичено и запушено';
             default:
                 return null;
         }
